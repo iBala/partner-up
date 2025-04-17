@@ -1,0 +1,248 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## Tech Stack
+- **Framework**: Next.js with App Router
+- **UI Components**: Shadcn UI
+- **Data Fetching**: SWR
+- **Authentication**: Supabase Auth
+- **Database**: Supabase
+- **State Management**: React Context + SWR + Local State
+
+## Practices:
+### SSR:
+- Server-Side Rendering (SSR) with Next.js. use server side rendering to pre render pages so it takes less time to load. 
+
+### Asset Optimization:
+- Preload critical assets 
+Eg., <link rel="preload" as="image" href="https://webassets.appliedai.club/..."
+- Use AVIF format for images so they are compressed better. 
+- Image requests include ?w=72&q=95&auto=format&dpr=2, which indicates dynamic resizing based on device pixel ratio.
+
+### Font Preloading & Caching:
+<link rel="preload" as="font" type="font/woff2" href="https://.../fonts/InterVariable.woff2?v=4" crossorigin="anonymous">
+
+### Efficient CSS Loading:
+<link rel="stylesheet" href="/_next/static/css/ca0edfa66df41f4d.css" data-precedence="next"
+Instead of one large CSS file, they use multiple smaller CSS chunks, reducing blocking time.
+
+### Code Splitting & Lazy Loading:
+JavaScript Chunking with Next.js:
+<script src="/_next/static/chunks/main-app-e1bf613aaff72d7d.js" async></script>
+The app should load only the necessary JavaScript chunks instead of a monolithic bundle.
+async loading ensures scripts don’t block rendering.
+
+### Component-Level Lazy Loading:
+Use dynamic imports (import() in Next.js) for non-critical components. This needs to be done at a page level. So you need to ask the user. 
+
+## Preconnect & DNS Prefetching
+### 	Faster External Asset Loading:
+<link rel="preconnect" href="https://client-api.linear.app/" crossorigin="anonymous">
+<link rel="preconnect" href="https://webassets.linear.app/" crossorigin="anonymous">
+Preconnect reduces latency for fetching external resources (images, fonts, APIs).
+
+## API Performance Enhancements
+Optimized REST API:
+If APIs return only necessary data, this reduces over-fetching.
+
+## Service Worker & PWA Enhancements
+### PWA Support via manifest.webmanifest:
+<link rel="manifest" href="https://....app/static/pwa.webmanifest?v=4" crossorigin="use-credentials">
+Supports offline caching.
+Enables faster page reloads with service workers.
+
+## Design:
+1. Think from the user point of your when they land on a page. 
+2. Load the components that the user will need first. 
+3. ALways show loading states
+4. App should be tighter, very clean. 
+5. No shadows, keep it very clean
+6. Use icons
+7. Explanatory text (like i icons or descriptions or hover text) wherever relevant
+8. Always handle error states.
+
+## State Management Strategy
+
+We use a hybrid approach to state management that combines several patterns:
+
+### 1. Server State (SWR Hooks)
+Located in `/hooks`, these handle data fetching and caching:
+
+- `useAccountData`: Account details and wallet information
+- `useActiveProducts`: Currently hired/active agents
+- `useProducts`: Available products/agents
+- `useCategories`: Product categories
+- `useRecentApps`: Recently used applications
+
+Example usage:
+```typescript
+const { account, isLoading, error } = useAccountData(userId)
+```
+
+### 2. Authentication State (User Context)
+Located in `/contexts/user-context.tsx`:
+
+- Handles user authentication state
+- Manages user profile data
+- Provides login/logout functionality
+
+Example usage:
+```typescript
+const { user, loading } = useUser()
+```
+
+### 3. UI State
+Managed locally in components using React's useState:
+
+- Form states
+- Modal states
+- UI interactions
+
+Example:
+```typescript
+const [isOpen, setIsOpen] = useState(false)
+```
+
+## Data Flow Patterns
+
+### 1. Data Fetching
+- All data fetching is handled through SWR hooks
+- Hooks handle caching, revalidation, and error states
+- Data is fetched based on user/account context
+
+Example:
+```typescript
+// In a component
+const { user } = useUser()
+const { account } = useAccountData(user?.auth_user)
+const { activeProducts } = useActiveProducts(account?.id)
+```
+
+### 2. Data Updates
+- Mutations are handled through dedicated hooks
+- SWR's mutate function is used to update cache
+- Optimistic updates are used where appropriate
+
+Example:
+```typescript
+// In use-hire-agent.ts
+const { mutate } = useActiveProducts(accountId)
+await supabase.from('account_product_mapping').insert(...)
+await mutate() // Revalidate the data
+```
+
+## Component Patterns
+
+### 1. Container Components
+- Handle data fetching and state management
+- Use multiple hooks to compose data
+- Pass data down to presentational components
+
+Example: `jobs/page.tsx`
+```typescript
+export default function JobsPage() {
+  const { jobs, isLoading, error } = useJobs(...)
+  const handleJobClick = (jobId: string) => {...}
+
+  return (
+    <div>
+      {jobs.map(job => (
+        <JobListItem 
+          job={job} 
+          onClick={handleJobClick}
+        />
+      ))}
+    </div>
+  )
+}
+```
+
+### 2. Presentational Components
+- Focus on UI rendering
+- Receive data via props
+- Handle local UI state only
+
+Example: `jobs/components/job-list-item.tsx`
+```typescript
+interface JobListItemProps {
+  job: Job
+  onClick: (jobId: string) => void
+}
+
+export function JobListItem({ job, onClick }: JobListItemProps) {
+  return (
+    <button onClick={() => onClick(job.id)}>
+      {job.name}
+    </button>
+  )
+}
+```
+
+## Best Practices
+
+1. **Data Fetching**
+   - Always use SWR hooks for server state
+   - Handle loading and error states
+   - Provide default values for undefined states
+
+2. **State Management**
+   - Use contexts sparingly, only for truly global state
+   - Prefer SWR for server state
+   - Keep UI state local to components
+
+3. **Component Structure**
+   - Add JSDoc comments for complex components
+   - Use TypeScript interfaces for props
+   - Handle loading and error states explicitly
+
+4. **Performance**
+   - Use React.memo for expensive renders
+   - Implement proper dependency arrays in useEffect
+   - Use SWR's built-in caching
+
+## Common Patterns
+
+### Loading States
+```typescript
+if (isLoading) {
+  return <ComponentSkeleton />
+}
+```
+
+### Error Handling
+```typescript
+if (error) {
+  return <ErrorComponent message={error.message} />
+}
+```
+
+### Data Dependencies
+```typescript
+// Chain data dependencies
+const { user } = useUser()
+const { account } = useAccountData(user?.auth_user)
+const { activeProducts } = useActiveProducts(account?.id)
+```
+
+## Common Gotchas
+
+1. **Undefined States**: Always provide default values
+```typescript
+const { data = [], isLoading } = useSWR(...)
+```
+
+2. **Type Safety**: Use TypeScript interfaces
+```typescript
+interface Product {
+  id: number
+  name: string
+  // ...
+}
+```
+
+3. **Loading States**: Check all dependencies
+```typescript
+const isLoading = isLoadingA || isLoadingB
+```

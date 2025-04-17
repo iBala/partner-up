@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## Fixing Bugs
+"Reflect on 5-7 different possible sources of the problem, distill those down to 1-2 most likely sources, and then add logs to validate your assumptions before we move onto implementing the actual code fix"
+
+## Implementation
+Always ask for more information if something is not clear. No code changes until what you need to do is very clear. 
+Use logging to identify issues comprehensively. 
+
+## Performance should always be top of mind. 
+All pages should load within 250 ms. 
+
+## New modules
+Always ask for confirmation before using new modules. 
