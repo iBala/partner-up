@@ -3,6 +3,7 @@ export type JobApplicationStatus = 'pending' | 'accepted' | 'rejected'
 export interface JobApplication {
   id: string
   job_id: string
+  applicant_user_id: string
   applicant_email: string
   applicant_name: string
   profile_links: string[]
@@ -16,6 +17,7 @@ export interface JobApplication {
 
 export interface CreateJobApplicationInput {
   job_id: string
+  applicant_user_id: string
   applicant_email: string
   applicant_name: string
   profile_links: string[]

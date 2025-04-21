@@ -92,3 +92,40 @@ CREATE POLICY "Job owners can update connection status"
 -- Index for faster lookups
 CREATE INDEX idx_job_applications_job_id ON partner_job_applications(job_id);
 CREATE INDEX idx_job_applications_applicant_email ON partner_job_applications(applicant_email);
+
+
+-- Add applicant_user_id column to partner_job_applications
+ALTER TABLE partner_job_applications
+ADD COLUMN applicant_user_id UUID REFERENCES auth.users(id);
+
+-- Add a NOT NULL constraint after migrating existing data
+ALTER TABLE partner_job_applications
+ALTER COLUMN applicant_user_id SET NOT NULL;
+
+
+-- First rename the existing user_id to user_profile_id
+ALTER TABLE partner_jobs
+RENAME COLUMN user_id TO user_profile_id;
+
+-- Add the new user_id column
+ALTER TABLE partner_jobs
+ADD COLUMN user_id UUID REFERENCES auth.users(id);
+
+-- Add a NOT NULL constraint after migrating existing data
+ALTER TABLE partner_jobs
+ALTER COLUMN user_id SET NOT NULL;
+
+-- First, drop the existing foreign key constraint if it exists
+ALTER TABLE partner_jobs
+DROP CONSTRAINT IF EXISTS partner_jobs_user_id_fkey;
+
+-- Add the new foreign key constraint to auth.users
+ALTER TABLE partner_jobs
+ADD CONSTRAINT partner_jobs_user_id_fkey
+FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+-- Update the query in the API to use the correct relationship
+-- The query should be changed from:
+-- partner_profiles!partner_jobs_user_id_fkey
+-- to:
+-- auth_users!partner_jobs_user_id_fkey

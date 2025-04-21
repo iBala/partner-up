@@ -10,6 +10,25 @@ export async function POST(
   try {
     const supabase = createClient()
 
+    // Get the authorization token
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authorization header is required' },
+        { status: 401 }
+      )
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 401 }
+      )
+    }
+
     // Get application details
     const { data: application, error: applicationError } = await supabase
       .from('partner_job_applications')
@@ -17,7 +36,8 @@ export async function POST(
         *,
         job:partner_jobs (
           title,
-          creator:user_id (
+          user_id,
+          creator:user_profile_id (
             email,
             full_name
           )
@@ -31,6 +51,14 @@ export async function POST(
       return NextResponse.json(
         { error: 'Application not found' },
         { status: 404 }
+      )
+    }
+
+    // Check if the current user is the job owner
+    if (application.job.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized to accept this application' },
+        { status: 403 }
       )
     }
 

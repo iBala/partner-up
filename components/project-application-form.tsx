@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Modal } from "@/components/ui/modal"
 import { CheckCircle2, AlertCircle, Loader2, X } from "lucide-react"
 import { createClient } from "@/lib/supabase"
+import { toast } from "sonner"
 
 interface ProjectApplicationFormProps {
   projectId: string
@@ -26,7 +27,7 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [profileLinks, setProfileLinks] = useState<string[]>([])
   const [newLink, setNewLink] = useState("")
-  const [userData, setUserData] = useState<{ fullName: string; email: string } | null>(null)
+  const [userData, setUserData] = useState<{ fullName: string; email: string; userId: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [formState, setFormState] = useState<ApplicationFormState>(initialState)
@@ -39,7 +40,8 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
       if (user) {
         setUserData({
           fullName: user.user_metadata?.full_name || "",
-          email: user.email || ""
+          email: user.email || "",
+          userId: user.id
         })
       }
       setIsLoading(false)
@@ -57,11 +59,26 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
         ? url.trim() 
         : `https://${url.trim()}`
       
-      new URL(normalizedUrl)
+      // Create URL object to validate
+      const urlObj = new URL(normalizedUrl)
+      
+      // Check if the hostname has a TLD (e.g., .com, .org, etc.)
+      // This regex checks for at least one dot followed by 2 or more characters
+      const hasTLD = /\.([a-zA-Z]{2,})$/.test(urlObj.hostname)
+      
+      if (!hasTLD) {
+        return { isValid: false, normalizedUrl }
+      }
+      
       return { isValid: true, normalizedUrl }
     } catch {
       return { isValid: false, normalizedUrl: url.trim() }
     }
+  }
+
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Only allow '+' at the start and numbers
+    return /^\+?[0-9]+$/.test(phone)
   }
 
   const handleAddLink = () => {
@@ -69,7 +86,7 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
 
     const { isValid, normalizedUrl } = validateUrl(newLink)
     if (!isValid) {
-      setLinkError("Please enter a valid URL (e.g., linkedin.com/in/your-profile)")
+      setLinkError("Please enter a valid URL with a top-level domain (e.g., linkedin.com/in/your-profile)")
       return
     }
 
@@ -96,15 +113,24 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
       
       if (!session) {
         console.error('No session found')
+        toast.error('You must be logged in to submit an application')
         throw new Error('You must be logged in to submit an application')
+      }
+
+      // Validate phone number if provided
+      const phoneNumber = formData.get("phoneNumber") as string
+      if (phoneNumber && !validatePhoneNumber(phoneNumber)) {
+        toast.error('Phone number can only contain numbers and an optional + at the start')
+        return
       }
 
       // Convert FormData to JSON
       const data = {
         job_id: projectId,
+        applicant_user_id: session.user.id,
         applicant_name: formData.get("fullName") as string,
         applicant_email: formData.get("email") as string,
-        phone_number: formData.get("phoneNumber") as string || undefined,
+        phone_number: phoneNumber || undefined,
         application_message: formData.get("contribution") as string,
         profile_links: profileLinks,
       }
@@ -144,6 +170,7 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
             errorStack: fetchError.stack,
             isNetworkError: fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')
           })
+          toast.error('Network error. Please check your connection and try again.')
           throw new Error(`Network error: ${fetchError.message}`)
         }
 
@@ -154,22 +181,25 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
+          const errorData = await response.json()
           console.error('7. API returned error:', {
             status: response.status,
             statusText: response.statusText,
-            errorText,
+            errorData,
             headers: Object.fromEntries(response.headers.entries())
           })
-          throw new Error(`API error (${response.status}): ${errorText}`)
+          toast.error(errorData.message || 'Failed to submit application. Please try again.')
+          throw new Error(`API error (${response.status}): ${errorData.message}`)
         }
 
         const result = await response.json()
         console.log('8. Application submitted successfully:', result)
 
+        toast.success(`Your application has been submitted successfully! We've sent your interest to ${result.creatorName || 'the builder'}.`)
+        
         setFormState({ 
           success: true, 
-          message: `Lovely! We've sent your interest to ${result.creatorName}. Once they accept your request, you will see an email in ${result.applicantEmail}`
+          message: `Lovely! We've sent your interest to ${result.creatorName || 'the builder'}. Once they accept your request, you will see an email in ${result.applicantEmail}`
         })
       } catch (error) {
         console.error('Error in form submission:', error)
@@ -196,10 +226,7 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
           stack: error.stack
         })
       }
-      setFormState({ 
-        success: false, 
-        message: error instanceof Error ? error.message : "An unexpected error occurred. Please try again." 
-      })
+      setIsSubmitting(false)
     }
   }
 
@@ -216,7 +243,7 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={formState.success ? "Connection request sent" : `Tell ${creatorName || projectTitle} why you'd like to join them`}
+      title={formState.success ? "Connection request sent" : `Tell ${creatorName || "the builder"} why you'd like to join them`}
       className="max-w-xl"
     >
       {formState.success ? (
@@ -280,8 +307,13 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
                 type="tel"
                 placeholder="+1 (555) 123-4567"
                 className={state.errors?.phoneNumber ? "border-red-500" : ""}
+                pattern="^\+?[0-9]+$"
+                title="Only numbers and an optional + at the start are allowed"
               />
               {state.errors?.phoneNumber && <p className="text-red-500 text-xs mt-1">{state.errors.phoneNumber[0]}</p>}
+              <p className="text-xs text-slate-500 mt-1">
+                Only numbers and an optional + at the start are allowed
+              </p>
             </div>
 
             <div>

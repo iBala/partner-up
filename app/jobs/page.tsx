@@ -17,13 +17,30 @@ import { Search, Briefcase, MapPin, Clock, Building2, Users, Calendar, Star, Mes
 import { DataTableFilter } from "@/components/data-table-filter"
 import { useReactTable, getCoreRowModel, getFilteredRowModel } from "@tanstack/react-table"
 import { columns } from "@/lib/jobs-table"
-import type { Job } from "@/types/job"
+import type { Job, JobCommitment } from "@/types/job"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ColumnFiltersState } from '@tanstack/react-table'
 import { OnChangeFn } from '@tanstack/react-table'
 import { useAuth } from '@/contexts/auth-context'
 import AuthModal from '@/components/auth/auth-modal'
 import ConnectModal from '@/components/connect-modal'
+
+interface JobResponse {
+  id: string
+  title: string
+  description: string
+  location: string | null
+  created_at: string
+  skills_needed: string[]
+  commitment: string
+  creator: {
+    id: string
+    user_metadata: {
+      full_name: string
+      avatar_url?: string
+    }
+  }[]
+}
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -119,52 +136,15 @@ export default function JobsPage() {
   const fetchJobs = async (pageNumber: number) => {
     try {
       setLoading(true)
-      const from = pageNumber * 10
-      const to = from + 9
+      console.log('[Jobs] Fetching jobs:', { pageNumber })
 
-      console.log('[Jobs] Fetching jobs:', { pageNumber, from, to })
-
-      let query = supabase
-        .from('partner_jobs')
-        .select(`
-          id,
-          title,
-          description,
-          location,
-          created_at,
-          skills_needed,
-          commitment,
-          creator:user_id (
-            full_name,
-            avatar_url
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .range(from, to)
-
-      const { data: rawData, error: supabaseError } = await query
-
-      if (supabaseError) {
-        console.error('[Jobs] Error fetching jobs:', supabaseError)
-        setError(supabaseError.message || 'Failed to load jobs')
-        toast.error(supabaseError.message || 'Failed to load jobs')
-        return
+      const response = await fetch(`/api/jobs?page=${pageNumber}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to load jobs')
       }
 
-      // Transform the data to match our Job type
-      const transformedData = (rawData?.map(job => ({
-        id: job.id,
-        title: job.title,
-        description: job.description,
-        location: job.location,
-        created_at: job.created_at,
-        skills_needed: job.skills_needed || [],
-        commitment: job.commitment,
-        creator: {
-          full_name: job.creator?.[0]?.full_name || 'Unknown',
-          avatar_url: job.creator?.[0]?.avatar_url || null
-        }
-      })) || []) satisfies Job[]
+      const { jobs: transformedData, hasMore } = await response.json()
 
       console.log('[Jobs] Transformed jobs data:', {
         firstJob: transformedData[0],
@@ -172,7 +152,7 @@ export default function JobsPage() {
         totalJobs: transformedData.length
       })
 
-      if (!rawData || rawData.length === 0) {
+      if (!transformedData || transformedData.length === 0) {
         if (pageNumber === 0) {
           setJobs([])
           setFilteredJobs([])
@@ -181,9 +161,7 @@ export default function JobsPage() {
         return
       }
 
-      if (rawData.length < 10) {
-        setHasMore(false)
-      }
+      setHasMore(hasMore)
 
       if (pageNumber === 0) {
         setJobs(transformedData)

@@ -5,6 +5,60 @@ import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
+// Function to get a random Pokémon avatar URL
+function getRandomPokemonAvatar(): string {
+  // List of popular and cool-looking Pokémon IDs
+  const coolPokemonIds = [
+    6,  // Charizard
+    9,  // Blastoise
+    25, // Pikachu
+    38, // Ninetales
+    59, // Arcanine
+    65, // Alakazam
+    94, // Gengar
+    130, // Gyarados
+    131, // Lapras
+    143, // Snorlax
+    149, // Dragonite
+    150, // Mewtwo
+    151, // Mew
+    196, // Espeon
+    197, // Umbreon
+    248, // Tyranitar
+    249, // Lugia
+    250, // Ho-Oh
+    251, // Celebi
+    384, // Rayquaza
+    445, // Garchomp
+    448, // Lucario
+    483, // Dialga
+    484, // Palkia
+    487, // Giratina
+    493, // Arceus
+    643, // Reshiram
+    644, // Zekrom
+    646, // Kyurem
+    716, // Xerneas
+    717, // Yveltal
+    718, // Zygarde
+    800, // Necrozma
+    888, // Zacian
+    889, // Zamazenta
+    890, // Eternatus
+    891, // Kubfu
+    892, // Urshifu
+    893, // Zarude
+    894, // Regieleki
+    895, // Regidrago
+    896, // Glastrier
+    897, // Spectrier
+    898, // Calyrex
+  ]
+
+  const randomId = coolPokemonIds[Math.floor(Math.random() * coolPokemonIds.length)]
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${randomId}.png`
+}
+
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
@@ -97,12 +151,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = async (email: string, password: string, name: string) => {
     try {
+      // Generate a random Pokémon avatar URL
+      const pokemonAvatarUrl = getRandomPokemonAvatar()
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: name,
+            avatar_url: pokemonAvatarUrl,
           },
         },
       })

@@ -19,7 +19,12 @@ interface JobResponse {
   location: string | null
   created_at: string
   updated_at: string
-  partner_profiles: PartnerProfile
+  user_profile_id: string
+  creator: {
+    id: string
+    full_name: string
+    avatar_url: string | null
+  }
 }
 
 const applicationSchema = z.object({
@@ -29,11 +34,11 @@ const applicationSchema = z.object({
   }, {
     message: "Job ID must be either a UUID or a number"
   }),
+  applicant_user_id: z.string().uuid(),
   applicant_email: z.string().email(),
   applicant_name: z.string().min(2),
   profile_links: z.array(z.string().url()),
   application_message: z.string().min(1).max(500),
-  phone_country_code: z.string().optional(),
   phone_number: z.string().optional(),
 })
 
@@ -53,7 +58,7 @@ export async function POST(
     if (!authHeader) {
       console.error('4. No authorization header found')
       return NextResponse.json(
-        { error: 'Authorization header is required' },
+        { error: 'Authorization header is required', message: 'Please log in to apply for this role' },
         { status: 401 }
       )
     }
@@ -71,7 +76,7 @@ export async function POST(
     if (authError || !user) {
       console.error('8. Authentication error:', authError)
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: 'Invalid or expired token', message: 'Your session has expired. Please log in again.' },
         { status: 401 }
       )
     }
@@ -87,6 +92,7 @@ export async function POST(
     const validatedData = applicationSchema.parse({
       ...body,
       job_id: jobId,
+      applicant_user_id: user.id,
     })
     console.log('11. Input validation successful. Validated data:', validatedData)
 
@@ -96,13 +102,16 @@ export async function POST(
       .from('partner_job_applications')
       .select('id')
       .eq('job_id', jobId)
-      .eq('applicant_email', validatedData.applicant_email)
+      .eq('applicant_user_id', user.id)
       .single()
 
     if (existingApplication) {
       console.log('13. Found existing application')
       return NextResponse.json(
-        { error: 'You have already applied for this job' },
+        { 
+          error: 'You have already applied for this job',
+          message: "You've already applied for this role"
+        },
         { status: 400 }
       )
     }
@@ -118,11 +127,11 @@ export async function POST(
         location,
         created_at,
         updated_at,
-        partner_profiles!partner_jobs_user_id_fkey (
+        user_profile_id,
+        creator:user_profiles!partner_jobs_user_profile_id_fkey (
           id,
           full_name,
-          avatar_url,
-          portfolio_url
+          avatar_url
         )
       `)
       .eq('id', jobId)
@@ -142,7 +151,11 @@ export async function POST(
         hint: jobError.hint
       })
       return NextResponse.json(
-        { error: 'Error fetching job details', details: jobError },
+        { 
+          error: 'Error fetching job details', 
+          message: 'Failed to load job details. Please try again later.',
+          details: jobError 
+        },
         { status: 500 }
       )
     }
@@ -150,7 +163,10 @@ export async function POST(
     if (!job) {
       console.error('17. Job not found in database')
       return NextResponse.json(
-        { error: 'Job not found' },
+        { 
+          error: 'Job not found',
+          message: 'This job posting is no longer available'
+        },
         { status: 404 }
       )
     }
@@ -173,20 +189,34 @@ export async function POST(
         errorCode: createError.code
       })
       return NextResponse.json(
-        { error: 'Failed to create application', details: createError },
+        { 
+          error: 'Failed to create application',
+          message: 'Failed to submit your application. Please try again later.',
+          details: createError 
+        },
         { status: 500 }
       )
     }
 
     console.log('21. Successfully created application in Supabase:', application)
 
+    // Get the creator's email from auth.users
+    const { data: creatorUser, error: creatorError } = await supabase.auth.admin.getUserById(job.user_profile_id)
+    if (creatorError) {
+      console.error('Error fetching creator email:', creatorError)
+      await sendSlackNotification({
+        message: `Failed to fetch creator email for job ${jobId}`,
+        error: creatorError,
+      })
+    }
+
     // Send email notification
     try {
       console.log('22. Attempting to send email notification')
       await sendJobApplicationEmail({
         jobTitle: job.title,
-        creatorEmail: validatedData.applicant_email,
-        creatorName: job.partner_profiles.full_name,
+        creatorEmail: creatorUser?.user?.email || 'unknown@example.com',
+        creatorName: job.creator.full_name,
         applicantName: validatedData.applicant_name,
         applicantEmail: validatedData.applicant_email,
         applicationMessage: validatedData.application_message,
@@ -207,7 +237,8 @@ export async function POST(
     console.log('25. Returning success response')
     return NextResponse.json({
       success: true,
-      creatorName: job.partner_profiles.full_name,
+      message: 'Your application has been submitted successfully!',
+      creatorName: job.creator.full_name,
       applicantEmail: validatedData.applicant_email
     })
   } catch (error) {
@@ -215,12 +246,20 @@ export async function POST(
     if (error instanceof z.ZodError) {
       console.error('27. Validation error details:', error.errors)
       return NextResponse.json(
-        { error: 'Invalid input data', details: error.errors },
+        { 
+          error: 'Invalid input data',
+          message: 'Please check your input and try again',
+          details: error.errors 
+        },
         { status: 400 }
       )
     }
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Internal server error',
+        message: 'Something went wrong. Please try again later.',
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     )
   }
