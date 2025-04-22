@@ -96,24 +96,34 @@ export const columns: ColumnDef<Job, any>[] = logColumnConfig([
       let selectedValues: string[] = []
       try {
         if (typeof filterValue === 'object' && 'values' in filterValue) {
+          // Handle multiOption filter model structure
           selectedValues = filterValue.values[0] || []
-        } else if (Array.isArray(filterValue)) {
-          selectedValues = filterValue
-        } else if (typeof filterValue === 'string') {
-          selectedValues = [filterValue]
+          const operator = filterValue.operator
+
+          // Log filter details for debugging
+          console.log('[JobsTable] MultiOption filter:', {
+            operator,
+            selectedValues,
+            cellValue
+          })
+
+          switch (operator) {
+            case 'include':
+            case 'include any of':
+              return selectedValues.some(v => cellValue.includes(v))
+            case 'include all of':
+              return selectedValues.every(v => cellValue.includes(v))
+            case 'exclude':
+              return !selectedValues.some(v => cellValue.includes(v))
+            default:
+              return true
+          }
         }
+        return true
       } catch (error) {
-        console.error('[JobsTable] Error extracting filter values:', error)
+        console.error('[JobsTable] Error in skills filter:', error)
         return true
       }
-
-      console.log('[JobsTable] Filter processing:', {
-        cellValue,
-        selectedValues,
-        hasMatch: selectedValues.some(v => cellValue.includes(v))
-      })
-
-      return selectedValues.length === 0 || selectedValues.some(v => cellValue.includes(v))
     },
     meta: {
       type: 'multiOption',
@@ -160,30 +170,7 @@ export const columns: ColumnDef<Job, any>[] = logColumnConfig([
       type: 'option',
       icon: Clock,
       displayName: 'Time Commitment',
-      options: commitmentOptions,
-      formatFilterValue: (value: unknown) => {
-        try {
-          // Handle the full filter model structure
-          if (typeof value === 'object' && value && 'values' in value && Array.isArray(value.values)) {
-            const filterModel = value as FilterModel<'option', any>
-            const selectedValue = filterModel.values[0]
-            
-            // Find the matching option to get its label
-            const options = filterModel.columnMeta?.options as ColumnOption[] | undefined
-            if (options) {
-              const option = options.find(opt => opt.value === selectedValue)
-              if (option) {
-                return option.label
-              }
-            }
-            return selectedValue || ''
-          }
-          return ''
-        } catch (error) {
-          console.error('[JobsTable] Error formatting filter value:', error)
-          return ''
-        }
-      }
+      options: commitmentOptions
     }
   })
 ]) 

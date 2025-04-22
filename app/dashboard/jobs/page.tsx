@@ -21,7 +21,8 @@ import { useAuth } from '@/contexts/auth-context'
 import AuthModal from '@/components/auth/auth-modal'
 import ConnectModal from '@/components/connect-modal'
 import { useJobShortlist } from '@/hooks/use-job-shortlist'
-import { JobCard } from './components/job-card'
+import { JobCard } from '@/components/job-card'
+import { FilterBar } from '@/components/filter-bar'
 
 
 interface JobResponse {
@@ -55,6 +56,15 @@ export default function DashboardJobsPage() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const { user, isAuthenticated, openAuthModal, openConnectModal } = useAuth()
+  const [filters, setFilters] = useState<{
+    location: string[]
+    skills: string[]
+    commitment: string[]
+  }>({
+    location: [],
+    skills: [],
+    commitment: []
+  })
 
   const handleFilterChange: OnChangeFn<ColumnFiltersState> = (updaterOrValue) => {
     try {
@@ -253,53 +263,58 @@ export default function DashboardJobsPage() {
       <ProtectedHeader />
       <AuthModal />
       <ConnectModal />
-      <main className="flex-1 container max-w-5xl mx-auto px-4 py-1">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col gap-6">
-            <div className="w-full space-y-4">
-              {/* <Card className="border rounded-xl"> */}
-                {/* <CardContent className="py-6"> */}
-                  <DataTableFilter table={table} />
-                {/* </CardContent> */}
-              {/* </Card> */}
-            </div>
+      <main className="flex-1 container max-w-5xl mx-auto px-4">
+        <div className="flex flex-col">
+          <div className="flex justify-between items-center py-8">
+            <h1 className="text-2xl font-medium text-gray-900 dark:text-gray-100">
+              A place for builders to find each other
+            </h1>
+            <Button 
+              onClick={handleCreateJob}
+              className="h-9 px-4"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Project
+            </Button>
+          </div>
 
-            <div className="w-full space-y-4">
-              {loading ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-              ) : jobs.length === 0 ? (
-                <Card className="border rounded-xl">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold">No jobs available</h3>
-                    <p className="text-muted-foreground">Check back later for new opportunities</p>
-                    {user && (
-                      <Button 
-                        className="mt-4"
-                        onClick={handleCreateJob}
-                      >
-                        Create a Job Post
-                      </Button>
-                    )}
-                  </CardContent>
+          <FilterBar table={table} />
+
+          <div className="flex flex-col gap-4 py-6">
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : jobs.length === 0 ? (
+              <Card className="border rounded-xl">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold">No jobs available</h3>
+                  <p className="text-muted-foreground">Check back later for new opportunities</p>
+                  {user && (
+                    <Button 
+                      className="mt-4"
+                      onClick={handleCreateJob}
+                    >
+                      Create a Job Post
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              filteredJobs.map((job) => (
+                <Card 
+                  key={job.id} 
+                  className="overflow-hidden border-0 bg-white dark:bg-black shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  <JobCard 
+                    job={job}
+                    onConnect={handleConnect}
+                    isConnecting={isConnecting}
+                  />
                 </Card>
-              ) : (
-                filteredJobs.map((job) => (
-                  <Card 
-                    key={job.id} 
-                    className="overflow-hidden border-0 bg-white dark:bg-black shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <JobCard 
-                      job={job}
-                      onConnect={handleConnect}
-                      isConnecting={isConnecting}
-                    />
-                  </Card>
-                ))
-              )}
-            </div>
+              ))
+            )}
           </div>
         </div>
       </main>

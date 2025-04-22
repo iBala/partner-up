@@ -1,8 +1,19 @@
-import { Heart, Loader2 } from "lucide-react"
+/**
+ * JobCard Component
+ * 
+ * Displays a job posting with interactive elements for shortlisting and connecting with builders.
+ * Features:
+ * - Shortlist functionality with authentication check
+ * - Connect with builder action
+ * - Responsive layout
+ * - Dark mode support
+ * - Loading states for async actions
+ */
+
+import { Heart, Loader2, Target, Clock, Lightbulb } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Target, Clock, Lightbulb } from "lucide-react"
 import { useJobShortlist } from "@/hooks/use-job-shortlist"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "sonner"
@@ -18,6 +29,7 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
   const { isAuthenticated, openAuthModal } = useAuth()
   const { isShortlisted, isLoading, toggleShortlist } = useJobShortlist(job.id)
 
+  // Handle shortlist action with authentication check
   const handleShortlist = async () => {
     if (!isAuthenticated) {
       openAuthModal('login')
@@ -34,6 +46,7 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
 
   return (
     <div className="px-5 py-4">
+      {/* Header section with job title and actions */}
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">
@@ -53,6 +66,7 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
           </div>
         </div>
 
+        {/* Action buttons */}
         <div className="flex items-center gap-2">
           <Button 
             variant="ghost"
@@ -84,11 +98,14 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
         </div>
       </div>
 
+      {/* Job description */}
       <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
         {job.description}
       </p>
 
+      {/* Job details grid */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Skills section */}
         <div className="flex items-start gap-2">
           <Target className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
           <div>
@@ -109,6 +126,7 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
           </div>
         </div>
 
+        {/* Time commitment section */}
         <div className="flex items-start gap-2">
           <Clock className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
           <div>
@@ -121,6 +139,7 @@ export function JobCard({ job, onConnect, isConnecting }: JobCardProps) {
           </div>
         </div>
 
+        {/* Fit reason section */}
         <div className="flex items-start gap-2">
           <Lightbulb className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
           <div>
