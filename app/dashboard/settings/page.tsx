@@ -1,240 +1,155 @@
 'use client'
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase"
-import ProjectCard from "@/components/project-card"
-import ProjectCardSkeleton from "@/components/project-card-skeleton"
-import ProtectedHeader from "@/components/protected-header"
-import { Button } from "@/components/ui/button"
-import { PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Briefcase, MapPin, Clock, Building2, Users, Calendar, Star, MessageSquare, Target, Lightbulb } from "lucide-react"
-import { DataTableFilter } from "@/components/data-table-filter"
-import { useReactTable, getCoreRowModel, getFilteredRowModel } from "@tanstack/react-table"
-import { columns } from "@/lib/jobs-table"
-import type { Job, JobCommitment } from "@/types/job"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
+import ProtectedHeader from "@/components/protected-header"
+import { useUserProfile, type UserProfile } from "@/hooks/use-user-profile"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ColumnFiltersState } from '@tanstack/react-table'
-import { OnChangeFn } from '@tanstack/react-table'
-import { useAuth } from '@/contexts/auth-context'
-import AuthModal from '@/components/auth/auth-modal'
-import ConnectModal from '@/components/connect-modal'
+import { Loader2, Upload } from "lucide-react"
+import { validateUrl, validatePhoneNumber, sanitizeText, validateName } from "../../../lib/validations"
 
-
-interface JobResponse {
-  id: string
-  title: string
-  description: string
-  location: string | null
-  created_at: string
-  skills_needed: string[]
-  commitment: string
-  creator: {
-    id: string
-    user_metadata: {
-      full_name: string
-      avatar_url?: string
-    }
-  }[]
+interface PortfolioUrl {
+  url: string;
+  index: number;
 }
 
-export default function DashboardJobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
+export default function SettingsPage() {
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [filteredJobs, setFilteredJobs] = useState<Job[]>([])
-  const [shortlistedJobs, setShortlistedJobs] = useState<string[]>([])
-  const [isShortlisting, setIsShortlisting] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const { user, isAuthenticated, openAuthModal, openConnectModal } = useAuth()
+  const { profile, loading, updateProfile, uploadAvatar } = useUserProfile()
+  const [newSkill, setNewSkill] = useState("")
+  const [portfolioUrls, setPortfolioUrls] = useState<string[]>([''])
+  const [skills, setSkills] = useState<string[]>([])
 
-  const handleFilterChange: OnChangeFn<ColumnFiltersState> = (updaterOrValue) => {
-    try {
-      console.log('[Jobs] Filter change details:', {
-        type: typeof updaterOrValue,
-        value: updaterOrValue,
-        isFunction: typeof updaterOrValue === 'function',
-        currentState: columnFilters
-      })
-
-      if (typeof updaterOrValue === 'function') {
-        const newState = updaterOrValue(columnFilters)
-        console.log('[Jobs] New filter state from function:', newState)
-      }
-
-      setColumnFilters(updaterOrValue)
-    } catch (error) {
-      console.error('[Jobs] Error applying filters:', error)
-      toast.error('Failed to apply filters. Please try again.')
+  // Initialize state when profile data is loaded
+  useEffect(() => {
+    if (profile) {
+      setPortfolioUrls(profile.portfolio_url || [''])
+      setSkills(profile.skills || [])
     }
-  }
+  }, [profile])
 
-  const table = useReactTable({
-    data: jobs,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    state: {
-      columnFilters,
-    },
-    onColumnFiltersChange: handleFilterChange,
-    debugAll: true,
-    debugTable: true,
-  })
-
+  // Add debug logging for profile changes
   useEffect(() => {
-    console.log('[Jobs] Column filters detailed state:', {
-      filters: columnFilters,
-      filterValues: columnFilters.map(f => ({
-        id: f.id,
-        value: f.value,
-        valueType: typeof f.value
-      })),
-      filteredRows: table.getFilteredRowModel().rows.length,
-      totalRows: table.getCoreRowModel().rows.length,
-      allRows: table.getCoreRowModel().rows.map(row => ({
-        id: row.id,
-        skills: row.getValue('skills')
-      })),
-      tableColumns: table.getAllColumns().map(col => ({
-        id: col.id,
-        hasFilterFn: Boolean(col.columnDef.filterFn)
-      }))
-    })
-  }, [columnFilters, table])
-
-  // Update filteredJobs when table filters change
-  useEffect(() => {
-    const filteredRows = table.getFilteredRowModel().rows
-    const filteredData = filteredRows.map(row => row.original)
-    setFilteredJobs(filteredData)
-  }, [table.getFilteredRowModel().rows])
-
-  useEffect(() => {
-    console.log('[Jobs] Table state updated:', {
-      rowCount: table.getRowModel().rows.length,
-      filterState: table.getState().columnFilters,
-      columns: table.getAllColumns().map(col => ({
-        id: col.id,
-        filterValue: col.getFilterValue(),
-      }))
-    })
-  }, [table.getState().columnFilters, jobs])
-
-  const supabase = createClient()
-
-  const fetchJobs = async (pageNumber: number) => {
-    try {
-      setLoading(true)
-      console.log('[Jobs] Fetching jobs:', { pageNumber })
-
-      const response = await fetch(`/api/jobs?page=${pageNumber}`)
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to load jobs')
-      }
-
-      const { jobs: transformedData, hasMore } = await response.json()
-
-      console.log('[Jobs] Transformed jobs data:', {
-        firstJob: transformedData[0],
-        creatorExample: transformedData[0]?.creator,
-        totalJobs: transformedData.length
-      })
-
-      if (!transformedData || transformedData.length === 0) {
-        if (pageNumber === 0) {
-          setJobs([])
-          setFilteredJobs([])
-        }
-        setHasMore(false)
-        return
-      }
-
-      setHasMore(hasMore)
-
-      if (pageNumber === 0) {
-        setJobs(transformedData)
-        setFilteredJobs(transformedData)
-      } else {
-        setJobs(prev => [...prev, ...transformedData])
-        setFilteredJobs(prev => [...prev, ...transformedData])
-      }
-    } catch (err) {
-      console.error('[Jobs] Unexpected error:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs'
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
+    if (profile) {
+      // Log complete URL without truncation
+      console.log('Profile in settings page:', JSON.stringify({
+        hasAvatar: !!profile.avatar_url,
+        avatarUrl: profile.avatar_url
+      }, null, 2))
     }
-  }
+  }, [profile])
 
-  useEffect(() => {
-    fetchJobs(0)
-  }, [])
-
-  const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      setPage(prev => prev + 1)
-      fetchJobs(page + 1)
-    }
-  }
-
-  const handleCreateJob = () => {
-    // TODO: Implement create job functionality
-    toast('Coming soon', {
-      description: 'This feature is under development'
-    })
-  }
-
-  const handleConnect = async (jobId: string) => {
-    if (!isAuthenticated) {
-      openAuthModal('login')
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    
+    // Validate and sanitize full name
+    const fullName = sanitizeText(formData.get('full_name') as string)
+    if (!validateName(fullName)) {
+      toast.error('Name can only contain letters, spaces, hyphens, and apostrophes')
       return
     }
 
-    openConnectModal(jobId)
+    // Validate phone number
+    const phoneNumber = formData.get('phone_number') as string
+    if (phoneNumber && !validatePhoneNumber(phoneNumber)) {
+      toast.error('Phone number can only contain numbers and an optional + at the start')
+      return
+    }
+
+    // Sanitize bio
+    const bio = sanitizeText(formData.get('bio') as string)
+
+    // Validate URLs with TLD check
+    const validatedUrls: string[] = []
+    for (const url of portfolioUrls) {
+      const { isValid, normalizedUrl } = validateUrl(url)
+      if (!isValid) {
+        toast.error(`Invalid URL: ${url}. URLs must have a valid domain (e.g., .com, .org, .io)`)
+        return
+      }
+      if (normalizedUrl) {
+        validatedUrls.push(normalizedUrl)
+      }
+    }
+
+    // Get skills from state instead of form data
+    const validatedSkills = skills.filter(Boolean)
+    
+    try {
+      await updateProfile({
+        full_name: fullName,
+        phone_number: phoneNumber,
+        bio,
+        portfolio_url: validatedUrls,
+        skills: validatedSkills,
+      })
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+    }
   }
 
-  const handleShortlist = (jobId: string) => {
-    if (isShortlisting) return
-    setIsShortlisting(true)
-    setShortlistedJobs(prev => [...prev, jobId])
-    setTimeout(() => setIsShortlisting(false), 1000)
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      await uploadAvatar(file)
+    } catch (error) {
+      console.error('Failed to upload avatar:', error)
+    }
   }
 
-  if (error) {
+  const handleAddSkill = () => {
+    if (!newSkill.trim()) return
+    setSkills(prev => [...prev, newSkill.trim()])
+    setNewSkill("")
+  }
+
+  const handleRemoveSkill = (index: number) => {
+    setSkills(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleAddPortfolioUrl = () => {
+    setPortfolioUrls(prev => [...prev, ''])
+  }
+
+  const handlePortfolioUrlChange = (index: number, value: string) => {
+    setPortfolioUrls(prev => {
+      const newUrls = [...prev]
+      newUrls[index] = value
+      return newUrls
+    })
+  }
+
+  const handleRemovePortfolioUrl = (index: number) => {
+    setPortfolioUrls(prev => prev.filter((_, i) => i !== index))
+  }
+
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#111111]">
         <ProtectedHeader />
-        <AuthModal />
-        <main className="flex-1 container max-w-5xl mx-auto px-4 py-8">
-          <div className="flex flex-col items-center justify-center h-64">
-            <h2 className="text-xl font-medium text-gray-900 dark:text-gray-100">Something went wrong</h2>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{error}</p>
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => {
-                setError(null)
-                fetchJobs(0)
-              }}
-            >
-              Try again
-            </Button>
-          </div>
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin" />
         </main>
       </div>
     )
@@ -243,155 +158,242 @@ export default function DashboardJobsPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#111111]">
       <ProtectedHeader />
-      <AuthModal />
-      <ConnectModal />
-      <main className="flex-1 container max-w-5xl mx-auto px-4 py-1">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col gap-6">
-            <div className="w-full space-y-4">
-              {/* <Card className="border rounded-xl"> */}
-                {/* <CardContent className="py-6"> */}
-                  <DataTableFilter table={table} />
-                {/* </CardContent> */}
-              {/* </Card> */}
-            </div>
-
-            <div className="w-full space-y-4">
-              {loading ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-              ) : jobs.length === 0 ? (
-                <Card className="border rounded-xl">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold">No jobs available</h3>
-                    <p className="text-muted-foreground">Check back later for new opportunities</p>
-                    {user && (
-                      <Button 
-                        className="mt-4"
-                        onClick={handleCreateJob}
+      <main className="flex-1">
+        <div className="hidden space-y-6 md:block max-w-5xl mx-auto py-8">
+          <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
+            <aside className="lg:w-1/5">
+              <nav className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1">
+                <Button variant="secondary" className="justify-start w-full">
+                  Profile
+                </Button>
+                {/* <Button variant="ghost" className="justify-start w-full">
+                  Account
+                </Button> */}
+              </nav>
+            </aside>
+            
+            <div className="flex-1 lg:pl-8">
+              <div className="space-y-6">
+                {/* <div>
+                  <h3 className="text-lg font-medium">Profile</h3>
+                  <p className="text-sm text-muted-foreground">
+                    This is how others will see you on the site.
+                  </p>
+                </div> */}
+                
+                {/* <Separator /> */}
+                
+                <form onSubmit={handleSubmit} className="space-y-8">
+                  <div className="space-y-2">
+                    <Label>Avatar</Label>
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border border-gray-200 dark:border-gray-700">
+                        <AvatarImage 
+                          src={profile?.avatar_url} 
+                          onError={(e) => {
+                            console.error('Error loading avatar image:', e)
+                            const img = e.target as HTMLImageElement
+                            console.log('Failed avatar URL:', JSON.stringify(img.src))
+                            // Try to load the image directly to check if it's accessible
+                            fetch(img.src)
+                              .then(response => {
+                                console.log('Avatar URL response:', {
+                                  status: response.status,
+                                  ok: response.ok,
+                                  headers: Object.fromEntries(response.headers.entries())
+                                })
+                              })
+                              .catch(error => console.error('Avatar fetch error:', error))
+                          }}
+                          onLoad={(e) => {
+                            const img = e.target as HTMLImageElement
+                            console.log('Successfully loaded avatar:', JSON.stringify(img.src))
+                          }}
+                          className="object-cover"
+                          alt={`${profile?.full_name}'s avatar`}
+                        />
+                        <AvatarFallback className="text-lg">
+                          {profile?.full_name?.charAt(0) || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Label 
+                        htmlFor="avatar" 
+                        className="cursor-pointer inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
                       >
-                        Create a Job Post
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredJobs.map((job) => (
-                  <Card 
-                    key={job.id} 
-                    className="overflow-hidden border-0 bg-white dark:bg-black shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="px-5 py-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">
-                            {job.title}
-                          </h2>
-                          <div className="flex items-center mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            <Avatar className="h-4 w-4 mr-1.5">
-                              <AvatarImage 
-                                src={job.creator.avatar_url || "/placeholder.svg"} 
-                                alt={job.creator.full_name} 
-                              />
-                              <AvatarFallback className="text-[10px]">
-                                {job.creator.full_name.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span>{job.creator.full_name}</span>
+                        <Upload className="h-4 w-4" />
+                        Upload new avatar
+                      </Label>
+                      <input
+                        id="avatar"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarChange}
+                      />
                           </div>
                         </div>
 
-                        <Button 
-                          onClick={() => handleConnect(job.id)}
-                          disabled={isConnecting}
-                          className="h-7 rounded-full text-xs font-medium bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                        >
-                          Connect
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name">Full Name</Label>
+                    <Input
+                      id="full_name"
+                      name="full_name"
+                      defaultValue={profile?.full_name}
+                      placeholder="Your full name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      defaultValue={profile?.email}
+                      disabled
+                    />
+                    <p className="text-[0.8rem] text-muted-foreground">
+                      Your email address is managed through your account settings.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone_number">Phone Number</Label>
+                    <Input
+                      id="phone_number"
+                      name="phone_number"
+                      type="tel"
+                      defaultValue={profile?.phone_number}
+                      placeholder="+1234567890"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      name="bio"
+                      defaultValue={profile?.bio || ''}
+                      placeholder="Tell us a little bit about yourself"
+                    />
+                    <p className="text-[0.8rem] text-muted-foreground">
+                      Write a few sentences about yourself.
+                    </p>
+                      </div>
+
+                  <div>
+                    <div className="space-y-2">
+                      <Label>Portfolio URLs</Label>
+                      <p className="text-[0.8rem] text-muted-foreground">
+                        Add links to your website, blog, or social media profiles.
+                      </p>
+                      {portfolioUrls.map((url, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={url}
+                            onChange={(e) => handlePortfolioUrlChange(index, e.target.value)}
+                            placeholder="https://example.com"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemovePortfolioUrl(index)}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4"
+                            >
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          </Button>
+                        </div>
+                      ))}
+                          </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={handleAddPortfolioUrl}
+                    >
+                      Add URL
+                    </Button>
+                        </div>
+
+                          <div>
+                    <div className="space-y-2">
+                      <Label>Skills</Label>
+                      <p className="text-[0.8rem] text-muted-foreground">
+                        Add your skills and expertise
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newSkill}
+                          onChange={(e) => setNewSkill(e.target.value)}
+                          placeholder="Add a skill (e.g., React, Product Management)"
+                          className="flex-1"
+                        />
+                        <Button type="button" onClick={handleAddSkill} variant="outline">
+                          Add
                         </Button>
                       </div>
-
-                      <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-                        {job.description}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex items-start gap-2">
-                          <Target className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-                          <div>
-                            <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                              Skills needed
-                            </span>
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {job.skills_needed?.map((skill, index) => (
-                                <Badge
-                                  key={index}
-                                  variant="outline"
-                                  className="h-5 px-1.5 text-[10px] font-medium bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300"
-                                >
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
+                      <div className="space-y-2">
+                        {skills.map((skill, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <Input
+                              value={skill}
+                              onChange={(e) => {
+                                const newSkills = [...skills]
+                                newSkills[index] = e.target.value
+                                setSkills(newSkills)
+                              }}
+                              placeholder="Enter your skill"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveSkill(index)}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-4 w-4"
+                              >
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                              </svg>
+                            </Button>
                           </div>
-                        </div>
-
-                        <div className="flex items-start gap-2">
-                          <Clock className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-                          <div>
-                            <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                              Time commitment
-                            </span>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                              {job.commitment}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2">
-                          <Lightbulb className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-                          <div>
-                            <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                              Why it fits you
-                            </span>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                              {job.fit_reason || 'Great opportunity to collaborate'}
-                            </p>
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  </Card>
-                ))
-              )}
+                  </div>
+                  
+                  <Button type="submit">Update profile</Button>
+                </form>
+              </div>
             </div>
           </div>
         </div>
       </main>
-
-      <div className="fixed bottom-8 right-8">
-        <Button 
-          className="h-12 w-12 rounded-full shadow-lg bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 dark:text-black"
-          onClick={handleCreateJob}
-        >
-          <PlusIcon className="h-5 w-5" />
-          <span className="sr-only">Create new project</span>
-        </Button>
-      </div>
-
-      <footer className="py-8 border-t border-gray-100 dark:border-gray-800">
-        <div className="container max-w-5xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="text-xs text-gray-500 dark:text-gray-400">© 2025 BuilderBoard. All rights reserved.</div>
-            <div className="flex space-x-6 mt-4 md:mt-0">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Terms</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">Privacy</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">Help</span>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 } 

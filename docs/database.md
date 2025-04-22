@@ -87,6 +87,40 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ## Row Level Security (RLS) Policies
 
+### Storage Buckets
+- **Public read for avatars**: Anyone can read avatar images
+  ```sql
+  CREATE POLICY "Public read for avatars" ON storage.objects
+    FOR SELECT USING (
+      bucket_id = 'avatars' AND
+      auth.role() = 'authenticated'
+    );
+  ```
+- **Owner can upload avatars**: Users can upload their own avatars
+  ```sql
+  CREATE POLICY "Owner can upload avatars" ON storage.objects
+    FOR INSERT WITH CHECK (
+      bucket_id = 'avatars' AND
+      auth.uid()::text = (storage.foldername(name))[1]
+    );
+  ```
+- **Owner can update avatars**: Users can update their own avatars
+  ```sql
+  CREATE POLICY "Owner can update avatars" ON storage.objects
+    FOR UPDATE USING (
+      bucket_id = 'avatars' AND
+      auth.uid()::text = (storage.foldername(name))[1]
+    );
+  ```
+- **Owner can delete avatars**: Users can delete their own avatars
+  ```sql
+  CREATE POLICY "Owner can delete avatars" ON storage.objects
+    FOR DELETE USING (
+      bucket_id = 'avatars' AND
+      auth.uid()::text = (storage.foldername(name))[1]
+    );
+  ```
+
 ### user_profiles
 - **Public read**: Anyone can read profiles
   ```sql
