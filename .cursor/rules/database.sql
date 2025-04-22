@@ -129,3 +129,24 @@ FOREIGN KEY (user_id) REFERENCES auth.users(id);
 -- partner_profiles!partner_jobs_user_id_fkey
 -- to:
 -- auth_users!partner_jobs_user_id_fkey
+
+-- Create the shortlists table
+CREATE TABLE public.partner_job_shortlists (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    job_id uuid NOT NULL REFERENCES partner_jobs(id) ON DELETE CASCADE,
+    user_profile_id uuid NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    UNIQUE(job_id, user_profile_id)
+);
+
+-- Add indexes for performance
+CREATE INDEX idx_job_shortlists_job_id ON partner_job_shortlists(job_id);
+CREATE INDEX idx_job_shortlists_user_id ON partner_job_shortlists(user_profile_id);
+
+-- Add RLS policies
+CREATE POLICY "Public read" ON public.partner_job_shortlists
+    FOR SELECT USING (true);
+
+CREATE POLICY "Owner CRUD" ON public.partner_job_shortlists
+    FOR ALL USING (auth.uid() = user_profile_id);
