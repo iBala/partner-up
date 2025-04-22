@@ -36,17 +36,26 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { session } } = await supabase.auth.getSession();
+  const pathname = request.nextUrl.pathname;
 
-  // If the user is not signed in and the current path is not / or /jobs,
-  // redirect the user to /
-  if (!session && !['/', '/jobs'].includes(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  // If the user is signed in and the current path is /,
-  // redirect the user to /jobs
-  if (session && request.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/jobs', request.url));
+  // Handle authenticated user routes
+  if (session) {
+    // Redirect /jobs to /dashboard/jobs for authenticated users
+    if (pathname === '/jobs') {
+      return NextResponse.redirect(new URL('/dashboard/jobs', request.url));
+    }
+    
+    // Redirect /dashboard to /dashboard/jobs
+    if (pathname === '/dashboard') {
+      return NextResponse.redirect(new URL('/dashboard/jobs', request.url));
+    }
+  } 
+  // Handle unauthenticated user routes
+  else {
+    // If trying to access dashboard routes while unauthenticated, redirect to /jobs
+    if (pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/jobs', request.url));
+    }
   }
 
   return response;

@@ -1,9 +1,29 @@
-import { Search, Bell, Menu } from "lucide-react"
+import { Search, Bell, Menu, Settings, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from '@/contexts/auth-context'
+import { useRouter } from 'next/navigation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function ProtectedHeader() {
+  const { user, logout } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      router.push('/')
+    } catch (error) {
+      console.error('Error logging out:', error)
+    }
+  }
+
   return (
     <header className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10 h-14">
       <div className="container max-w-5xl mx-auto px-4 h-full">
@@ -38,10 +58,28 @@ export default function ProtectedHeader() {
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-black dark:bg-white rounded-full"></span>
             </Button>
 
-            <Avatar className="h-7 w-7 border border-gray-200 dark:border-gray-700">
-              <AvatarImage src="/placeholder.svg?height=28&width=28" />
-              <AvatarFallback className="text-xs">JD</AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 p-0">
+                  <Avatar className="h-7 w-7 border border-gray-200 dark:border-gray-700">
+                    <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder.svg?height=28&width=28"} />
+                    <AvatarFallback className="text-xs">
+                      {user?.user_metadata?.full_name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 shadow-none">
+                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
               <Menu className="h-4 w-4" />

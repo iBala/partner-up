@@ -142,6 +142,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error
       closeAuthModal()
       toast.success('Successfully logged in')
+      // Add navigation to dashboard/jobs after successful login
+      window.location.href = '/dashboard/jobs'
     } catch (error) {
       console.error('Error logging in:', error)
       toast.error('Failed to log in. Please check your credentials.')
