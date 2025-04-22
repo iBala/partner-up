@@ -1,4 +1,4 @@
-import { Search, Bell, Menu, Settings, LogOut } from "lucide-react"
+import { Search, Menu, Settings, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -53,14 +53,9 @@ export default function ProtectedHeader() {
               My Projects
             </Button>
 
-            <Button variant="ghost" size="icon" className="relative h-8 w-8">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-black dark:bg-white rounded-full"></span>
-            </Button>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 p-0">
+                <Button variant="ghost" className="relative h-8 w-8 p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                   <Avatar className="h-7 w-7 border border-gray-200 dark:border-gray-700">
                     <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder.svg?height=28&width=28"} />
                     <AvatarFallback className="text-xs">
@@ -70,6 +65,9 @@ export default function ProtectedHeader() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 shadow-none">
+                <div className="px-2 py-1.5 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+                  {user?.user_metadata?.full_name || user?.email || 'User'}
+                </div>
                 <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
