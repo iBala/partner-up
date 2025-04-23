@@ -169,8 +169,8 @@ export async function GET(request: Request) {
 
     // Transform the data to match the expected format
     const jobs = shortlistedJobs?.map(item => ({
-      ...item.partner_jobs,
-      creator: item.partner_jobs.creator
+        ...item.partner_jobs,
+        creator: item.partner_jobs.creator
     })) || [];
 
     // Calculate if there are more jobs

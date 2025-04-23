@@ -1,7 +1,14 @@
 import { Resend } from 'resend';
+import { createClient } from '@/lib/supabase/server';
+import { SignJWT } from 'jose';
+import { nanoid } from 'nanoid';
 
 if (!process.env.RESEND_API_KEY) {
   throw new Error('Missing RESEND_API_KEY');
+}
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('Missing JWT_SECRET');
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -89,6 +96,12 @@ interface JobApplicationEmailProps {
   applicationId: string;
 }
 
+interface JobApplication {
+  job: {
+    user_id: string;
+  };
+}
+
 export async function sendJobApplicationEmail({
   jobTitle,
   creatorEmail,
@@ -99,11 +112,81 @@ export async function sendJobApplicationEmail({
   profileLinks,
   applicationId,
 }: JobApplicationEmailProps) {
-  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/application/${applicationId}/accept`;
-  const rejectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/application/${applicationId}/reject`;
+  const supabase = createClient();
+
+  // Get the job owner's user ID with proper table relationships
+  const { data: application, error: fetchError } = await supabase
+    .from('partner_job_applications')
+    .select(`
+      job:partner_jobs (
+        user_id
+      )
+    `)
+    .eq('id', applicationId)
+    .single() as { data: JobApplication | null, error: any };
+
+  if (fetchError) {
+    console.error('Error fetching application:', fetchError);
+    throw new Error('Failed to fetch application details');
+  }
+
+  if (!application?.job?.user_id) {
+    console.error('Application data:', JSON.stringify(application, null, 2));
+    throw new Error('Could not find job owner - job or user_id is missing');
+  }
+
+  const userId = application.job.user_id;
+
+  // Create secure tokens for accept and reject actions
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  
+  // Generate unique token IDs
+  const acceptTokenId = nanoid();
+  const rejectTokenId = nanoid();
+
+  // Store token IDs in the database for one-time use validation
+  await supabase.from('application_tokens').insert([
+    {
+      token_id: acceptTokenId,
+      application_id: applicationId,
+      action: 'accept',
+      used: false
+    },
+    {
+      token_id: rejectTokenId,
+      application_id: applicationId,
+      action: 'reject',
+      used: false
+    }
+  ]);
+
+  const acceptToken = await new SignJWT({ 
+    action: 'accept',
+    applicationId,
+    userId,
+    tokenId: acceptTokenId
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setJti(acceptTokenId)
+    .setIssuedAt()
+    .sign(secret);
+
+  const rejectToken = await new SignJWT({ 
+    action: 'reject',
+    applicationId,
+    userId,
+    tokenId: rejectTokenId
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setJti(rejectTokenId)
+    .setIssuedAt()
+    .sign(secret);
+
+  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL}/application/${applicationId}/accept?token=${acceptToken}`;
+  const rejectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/application/${applicationId}/reject?token=${rejectToken}`;
 
   const { data, error } = await resend.emails.send({
-    from: 'Partner Up <notifications@appliedai.club>',
+    from: 'Partner Up <notifications@mail.appliedai.club>',
     to: creatorEmail,
     subject: `New Application for ${jobTitle}`,
     html: `
@@ -165,7 +248,7 @@ export async function sendConnectionEmail({
   jobTitle: string;
 }) {
   const { data, error } = await resend.emails.send({
-    from: 'Partner Up <notifications@appliedai.club>',
+    from: 'Partner Up <notifications@mail.appliedai.club>',
     to: [creatorEmail, applicantEmail],
     subject: `Connection Established for ${jobTitle}`,
     html: `
