@@ -130,6 +130,9 @@ FOREIGN KEY (user_id) REFERENCES auth.users(id);
 -- to:
 -- auth_users!partner_jobs_user_id_fkey
 
+-- Drop the application_tokens table since we no longer need it
+DROP TABLE IF EXISTS public.application_tokens;
+
 -- Create the shortlists table
 CREATE TABLE public.partner_job_shortlists (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),

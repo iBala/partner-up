@@ -20,11 +20,7 @@ interface JobResponse {
   created_at: string
   updated_at: string
   user_profile_id: string
-  creator: {
-    id: string
-    full_name: string
-    avatar_url: string | null
-  }
+  creator: PartnerProfile
 }
 
 const applicationSchema = z.object({
@@ -48,61 +44,28 @@ export async function POST(
 ) {
   const jobId = await Promise.resolve(params.jobId)
   console.log('1. API route hit with jobId:', jobId)
-  console.log('2. Request headers:', Object.fromEntries(request.headers.entries()))
-  
+
   try {
-    // Get the authorization token
-    const authHeader = request.headers.get('Authorization')
-    console.log('3. Auth header present:', !!authHeader)
-    
-    if (!authHeader) {
-      console.error('4. No authorization header found')
-      return NextResponse.json(
-        { error: 'Authorization header is required', message: 'Please log in to apply for this role' },
-        { status: 401 }
-      )
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    console.log('5. Token extracted, length:', token.length)
-    
-    const supabase = createClient()
-    console.log('6. Supabase client created')
-    
-    // Verify the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    console.log('7. Token verification result:', { user: !!user, error: !!authError })
-    
-    if (authError || !user) {
-      console.error('8. Authentication error:', authError)
-      return NextResponse.json(
-        { error: 'Invalid or expired token', message: 'Your session has expired. Please log in again.' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
-    console.log('9. Request body received:', body)
+    console.log('3. Request body:', body)
 
-    // Validate input
-    console.log('10. Validating input data:', {
-      rawBody: body,
-      jobId: jobId
-    })
+    // Validate input data
+    console.log('4. Validating input data')
     const validatedData = applicationSchema.parse({
       ...body,
-      job_id: jobId,
-      applicant_user_id: user.id,
+      job_id: jobId
     })
-    console.log('11. Input validation successful. Validated data:', validatedData)
+    console.log('5. Input data validated successfully')
+
+    const supabase = createClient()
 
     // Check if user has already applied
-    console.log('12. Checking for existing applications')
-    const { data: existingApplication, error: existingError } = await supabase
+    console.log('12. Checking for existing application')
+    const { data: existingApplication } = await supabase
       .from('partner_job_applications')
       .select('id')
       .eq('job_id', jobId)
-      .eq('applicant_user_id', user.id)
+      .eq('applicant_user_id', validatedData.applicant_user_id)
       .single()
 
     if (existingApplication) {
@@ -137,31 +100,8 @@ export async function POST(
       .eq('id', jobId)
       .single<JobResponse>()
 
-    console.log('15. Job fetch result:', {
-      hasJob: !!job,
-      jobError: jobError,
-      jobData: job
-    })
-
-    if (jobError) {
-      console.error('16. Error fetching job details:', {
-        error: jobError,
-        message: jobError.message,
-        details: jobError.details,
-        hint: jobError.hint
-      })
-      return NextResponse.json(
-        { 
-          error: 'Error fetching job details', 
-          message: 'Failed to load job details. Please try again later.',
-          details: jobError 
-        },
-        { status: 500 }
-      )
-    }
-
-    if (!job) {
-      console.error('17. Job not found in database')
+    if (jobError || !job) {
+      console.error('16. Error fetching job details:', jobError)
       return NextResponse.json(
         { 
           error: 'Job not found',
@@ -170,24 +110,20 @@ export async function POST(
         { status: 404 }
       )
     }
-    console.log('18. Job details fetched successfully:', job)
 
-    // Create application
-    console.log('19. Attempting to create application in Supabase with data:', validatedData)
+    // Create application with pending status
+    console.log('19. Creating application')
     const { data: application, error: createError } = await supabase
       .from('partner_job_applications')
-      .insert(validatedData)
+      .insert({
+        ...validatedData,
+        status: 'pending'
+      })
       .select()
       .single()
 
     if (createError) {
-      console.error('20. Supabase error creating application:', {
-        error: createError,
-        errorMessage: createError.message,
-        errorDetails: createError.details,
-        errorHint: createError.hint,
-        errorCode: createError.code
-      })
+      console.error('20. Error creating application:', createError)
       return NextResponse.json(
         { 
           error: 'Failed to create application',
@@ -198,9 +134,7 @@ export async function POST(
       )
     }
 
-    console.log('21. Successfully created application in Supabase:', application)
-
-    // Get the creator's email from auth.users
+    // Get the creator's email
     const { data: creatorUser, error: creatorError } = await supabase.auth.admin.getUserById(job.user_profile_id)
     if (creatorError) {
       console.error('Error fetching creator email:', creatorError)
@@ -212,7 +146,7 @@ export async function POST(
 
     // Send email notification
     try {
-      console.log('22. Attempting to send email notification')
+      console.log('22. Sending email notification')
       await sendJobApplicationEmail({
         jobTitle: job.title,
         creatorEmail: creatorUser?.user?.email || 'unknown@example.com',
@@ -220,31 +154,27 @@ export async function POST(
         applicantName: validatedData.applicant_name,
         applicantEmail: validatedData.applicant_email,
         applicationMessage: validatedData.application_message,
-        profileLinks: validatedData.profile_links,
-        applicationId: application.id,
+        profileLinks: validatedData.profile_links
       })
       console.log('23. Email notification sent successfully')
     } catch (emailError) {
       console.error('24. Error sending email:', emailError)
-      // Don't fail the request if email fails, just log it
       await sendSlackNotification({
         message: `Failed to send job application email for job ${jobId}`,
         error: emailError,
       })
     }
 
-    // Return success response with creator name
-    console.log('25. Returning success response')
+    // Return success response
     return NextResponse.json({
       success: true,
-      message: 'Your application has been submitted successfully!',
+      message: 'Your application has been submitted successfully! The project creator will contact you if interested.',
       creatorName: job.creator.full_name,
       applicantEmail: validatedData.applicant_email
     })
   } catch (error) {
     console.error('26. Error in job application process:', error)
     if (error instanceof z.ZodError) {
-      console.error('27. Validation error details:', error.errors)
       return NextResponse.json(
         { 
           error: 'Invalid input data',

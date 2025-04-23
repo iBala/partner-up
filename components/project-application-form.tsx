@@ -251,9 +251,9 @@ export function ProjectApplicationForm({ projectId, projectTitle, isOpen, onClos
           <div className="rounded-full bg-emerald-100 p-3 mb-4">
             <CheckCircle2 className="h-8 w-8 text-emerald-600" />
           </div>
-          <h3 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-gray-100">Connection request sent!</h3>
+          <h3 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-gray-100">Application sent!</h3>
           <p className="text-base text-gray-600 dark:text-gray-400 mb-6 max-w-sm leading-relaxed">
-            {formState.message}
+            We've sent your details to {creatorName}. If they're interested, they'll reach out to you directly via email.
           </p>
           <Button onClick={handleClose} className="min-w-[120px]">Close</Button>
         </div>
