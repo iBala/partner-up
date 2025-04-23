@@ -3,20 +3,12 @@ description: Whenever an API is written, authentication is involved
 globs: 
 alwaysApply: false
 ---
-I'll help you understand the authentication, caching, API calls, and session management in your project. Let me gather information about these aspects systematically.
-
-First, let me search for relevant files and code:
-
-
-Search files...
-Let me search for caching and API call related code:
-
-
-
-Search files...
-Based on my analysis of the codebase, I'll provide a comprehensive summary of how authentication, caching, API calls, and session management are handled in the project:
+A comprehensive summary of how authentication, caching, API calls, and session management are handled in the project:
 
 # Authentication & Session Management
+The app uses Supabase Auth with cookie-based session management
+When a user logs in, Supabase creates a session and stores it in cookies
+The middleware (middleware.ts) and API routes validate this session
 
 ## Core Authentication System
 - The project uses Supabase for authentication and session management

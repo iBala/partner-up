@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { Job, JobCommitment } from '@/types/job'
 
@@ -98,12 +99,38 @@ interface JobResponse {
 
 export async function GET(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            const cookie = cookieStore.get(name);
+            return cookie?.value;
+          },
+          set() { /* Not needed in API route */ },
+          remove() { /* Not needed in API route */ },
+        },
+      }
+    );
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Log for debugging
+    console.log("Session found:", session.user.id);
+
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '0')
     const from = page * 10
     const to = from + 9
-
-    const supabase = createClient()
 
     const { data: jobs, error: jobsError } = await supabase
       .from('partner_jobs')
@@ -153,10 +180,84 @@ export async function GET(request: Request) {
       hasMore: jobs?.length === 10
     })
   } catch (error) {
-    console.error('[Jobs API] Unexpected error:', error)
+    console.error("Error in GET /api/jobs:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
-    )
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            const cookie = cookieStore.get(name);
+            return cookie?.value;
+          },
+          set() { /* Not needed in API route */ },
+          remove() { /* Not needed in API route */ },
+        },
+      }
+    );
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Log for debugging
+    console.log("Session found:", session.user.id);
+
+    const json = await request.json();
+    console.log('[Jobs API POST] Request body:', {
+      title: json.title,
+      description: json.description?.substring(0, 50) + '...',
+      skillsCount: json.skills_needed?.length,
+      commitment: json.commitment,
+      resourceLinksCount: json.resource_links?.length
+    });
+
+    // Insert the job
+    console.log('[Jobs API POST] Inserting job...');
+    const { error: insertError } = await supabase
+      .from('partner_jobs')
+      .insert([{
+        ...json,
+        user_profile_id: session.user.id,
+        status: 'active'
+      }]);
+
+    if (insertError) {
+      console.error('[Jobs API POST] Insert error:', {
+        error: insertError,
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint
+      });
+      return NextResponse.json(
+        { error: insertError.message },
+        { status: 500 }
+      );
+    }
+
+    console.log('[Jobs API POST] Job created successfully');
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error in POST /api/jobs:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 } 

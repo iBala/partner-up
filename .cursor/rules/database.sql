@@ -20,6 +20,7 @@ CREATE TABLE public.partner_jobs (
   title text NOT NULL,
   description text NOT NULL,
   location text,
+  commitment 
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
