@@ -219,10 +219,7 @@ export default function DashboardJobsPage() {
   }
 
   const handleCreateJob = () => {
-    // TODO: Implement create job functionality
-    toast('Coming soon', {
-      description: 'This feature is under development'
-    })
+    router.push('/dashboard/jobs/new')
   }
 
   const handleConnect = async (jobId: string) => {
@@ -464,16 +461,6 @@ export default function DashboardJobsPage() {
           </div>
         </div>
       </main>
-
-      <div className="fixed bottom-8 right-8">
-        <Button 
-          className="h-12 w-12 rounded-full shadow-lg bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 dark:text-black"
-          onClick={handleCreateJob}
-        >
-          <PlusIcon className="h-5 w-5" />
-          <span className="sr-only">Create new project</span>
-        </Button>
-      </div>
 
       <footer className="py-8 border-t border-gray-100 dark:border-gray-800">
         <div className="container max-w-5xl mx-auto px-4">

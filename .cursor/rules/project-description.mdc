@@ -15,6 +15,7 @@ Developers, Product Managers and Business folks who have a project in mind where
 a) Create a post for a role they are looking to get. This will be like a JD but this is a role for a peer instead of an employee. 
 b) View existing open roles and apply. 
 - When a user likes a role and wants to discuss, they click on "Connect". A form opens where the user can introduce themselves, their portfolio or any URL which shows their work, an intro message, attachments. Intro message is mandatory. others are optional
-- Once this request is submitted, an email is sent to the creator about this request. Which will have a CTA to accept and reject. 
-- If the user accepts, connect both of them over a common email. 
-- If it's rejected, just log it. 
+- Once this request is submitted, an email is sent to the builder about this request. The builder can then take it over
+
+
+
