@@ -1,114 +1,210 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-import { Job, JobCommitment } from '@/types/job'
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { RequestCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 
-interface JobResponse {
-  id: string
-  title: string
-  description: string
-  location: string | null
-  created_at: string
-  skills_needed: string[]
-  commitment: string
-  user_id: string
-  creator: {
-    id: string
-    full_name: string
-    avatar_url: string | null
-  }
+interface ShortlistedJob {
+  job_id: string;
+  partner_jobs: {
+    id: string;
+    title: string;
+    description: string;
+    location: string | null;
+    created_at: string;
+    updated_at: string;
+    user_profile_id: string;
+    creator: {
+      id: string;
+      full_name: string;
+      avatar_url: string | null;
+    };
+  };
 }
 
 export async function GET(request: Request) {
+  console.log('[Shortlisted API] Request received:', {
+    url: request.url,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries())
+  });
+
   try {
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '0')
-    const from = page * 10
-    const to = from + 9
-
-    const supabase = createClient()
-
-    // Get the current user's profile ID
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    console.log('[Shortlisted API] Initializing cookie store...');
+    const cookieStore = await cookies();
     
-    if (userError || !user) {
-      console.error('[Shortlisted Jobs API] Error getting user:', userError)
+    console.log('[Shortlisted API] Cookie store initialized');
+
+    console.log('[Shortlisted API] Initializing Supabase client...');
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            const cookie = cookieStore.get(name);
+            return cookie?.value;
+          },
+          set() { /* Not needed in API route */ },
+          remove() { /* Not needed in API route */ },
+        },
+      }
+    );
+
+    console.log('[Shortlisted API] Supabase client initialized successfully');
+
+    console.log('[Shortlisted API] Checking environment variables:', {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    });
+
+    console.log('[Shortlisted API] Getting session...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[Shortlisted API] Session error:', {
+        error: sessionError,
+        errorMessage: sessionError.message,
+        errorStack: sessionError.stack
+      });
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized', details: sessionError.message },
         { status: 401 }
-      )
+      );
     }
 
-    // Get the user's profile ID
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('auth_user', user.id)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('[Shortlisted Jobs API] Error getting profile:', profileError)
+    if (!session) {
+      console.log('[Shortlisted API] No session found');
       return NextResponse.json(
-        { error: 'Profile not found' },
-        { status: 404 }
-      )
+        { error: 'Unauthorized', details: 'No session found' },
+        { status: 401 }
+      );
     }
 
-    // Fetch shortlisted jobs
-    const { data: jobs, error: jobsError } = await supabase
-      .from('partner_jobs_shortlisted')
+    console.log('[Shortlisted API] User authenticated:', {
+      userId: session.user.id,
+      email: session.user.email,
+      sessionExpiresAt: session.expires_at
+    });
+
+    // Parse URL for pagination with proper validation
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
+    
+    // Ensure page is never negative
+    const page = Math.max(0, parseInt(pageParam || '0'));
+    const limit = parseInt(limitParam || '10');
+    // Ensure offset is never negative
+    const offset = Math.max(0, page * limit);
+
+    console.log('[Shortlisted API] Pagination parameters:', {
+      page,
+      limit,
+      offset,
+      rawPage: pageParam,
+      rawLimit: limitParam
+    });
+
+    // Fetch shortlisted jobs for the authenticated user
+    console.log('[Shortlisted API] Building query for shortlisted jobs...');
+    const query = supabase
+      .from('partner_job_shortlists')
       .select(`
-        job:partner_jobs(
+        job_id,
+        partner_jobs!inner(
           id,
           title,
           description,
           location,
           created_at,
-          skills_needed,
-          commitment,
+          updated_at,
           user_profile_id,
-          creator:user_profiles!partner_jobs_user_profile_id_fkey(
+          creator:user_profiles!inner(
             id,
             full_name,
             avatar_url
           )
         )
-      `)
-      .eq('user_profile_id', profile.id)
-      .order('created_at', { ascending: false })
-      .range(from, to) as { data: { job: JobResponse }[] | null, error: any }
+      `, { count: 'exact' })
+      .eq('user_profile_id', session.user.id)
+      .range(offset, offset + limit - 1)
+      .order('created_at', { ascending: false });
+
+    console.log('[Shortlisted API] Executing query:', {
+      table: 'partner_job_shortlists',
+      filter: { user_profile_id: session.user.id },
+      range: [offset, offset + limit - 1]
+    });
+
+    const { data: shortlistedJobs, error: jobsError, count } = await query as { 
+      data: ShortlistedJob[] | null;
+      error: any;
+      count: number | null;
+    };
 
     if (jobsError) {
-      console.error('[Shortlisted Jobs API] Error fetching jobs:', jobsError)
+      console.error('[Shortlisted API] Database error:', {
+        error: jobsError,
+        errorMessage: jobsError.message,
+        errorCode: jobsError.code,
+        details: jobsError.details,
+        hint: jobsError.hint,
+        query: {
+          table: 'partner_job_shortlists',
+          filter: { user_profile_id: session.user.id },
+          range: [offset, offset + limit - 1]
+        }
+      });
       return NextResponse.json(
-        { error: jobsError.message || 'Failed to load shortlisted jobs' },
+        { error: 'Error fetching shortlisted jobs', details: jobsError.message },
         { status: 500 }
-      )
+      );
     }
 
-    // Transform the data to match our Job type
-    const transformedData = (jobs?.map(({ job }) => ({
-      id: job.id,
-      title: job.title,
-      description: job.description,
-      location: job.location,
-      created_at: job.created_at,
-      skills_needed: job.skills_needed || [],
-      commitment: job.commitment as JobCommitment,
-      creator: {
-        full_name: job.creator?.full_name || 'Emotional Monkey',
-        avatar_url: job.creator?.avatar_url || null
-      }
-    })) || []) satisfies Job[]
+    // Log the raw data for debugging
+    console.log('[Shortlisted API] Raw job data:', {
+      firstJob: shortlistedJobs?.[0],
+      totalJobs: shortlistedJobs?.length
+    });
+
+    // Transform the data to match the expected format
+    const jobs = shortlistedJobs?.map(item => ({
+      ...item.partner_jobs,
+      creator: item.partner_jobs.creator
+    })) || [];
+
+    // Calculate if there are more jobs
+    const hasMore = count ? offset + limit < count : false;
+
+    console.log('[Shortlisted API] Successfully fetched jobs:', {
+      totalJobs: count,
+      returnedJobs: jobs?.length,
+      hasMore,
+      firstJobId: jobs?.[0]?.id,
+      lastJobId: jobs?.[jobs?.length - 1]?.id,
+      jobIds: jobs?.map(job => job.id),
+      sampleCreator: jobs?.[0]?.creator // Log sample creator data
+    });
 
     return NextResponse.json({
-      jobs: transformedData,
-      hasMore: jobs?.length === 10
-    })
+      jobs,
+      hasMore,
+      total: count
+    });
+
   } catch (error) {
-    console.error('[Shortlisted Jobs API] Unexpected error:', error)
+    console.error('[Shortlisted API] Unexpected error:', {
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      type: error instanceof Error ? error.constructor.name : typeof error
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal Server Error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
-    )
+    );
   }
 } 

@@ -1,0 +1,131 @@
+---
+description: Whenever an API is written, authentication is involved
+globs: 
+alwaysApply: false
+---
+I'll help you understand the authentication, caching, API calls, and session management in your project. Let me gather information about these aspects systematically.
+
+First, let me search for relevant files and code:
+
+
+Search files...
+Let me search for caching and API call related code:
+
+
+
+Search files...
+Based on my analysis of the codebase, I'll provide a comprehensive summary of how authentication, caching, API calls, and session management are handled in the project:
+
+# Authentication & Session Management
+
+## Core Authentication System
+- The project uses Supabase for authentication and session management
+- Two types of Supabase clients are implemented:
+  1. Server-side client (`lib/supabase/server.ts`)
+  2. Client-side client (`lib/supabase/client.ts`)
+
+## Session Management Flow
+1. **Middleware Layer** (`middleware.ts`):
+   - Intercepts all requests
+   - Creates a Supabase client with cookie management
+   - Handles session validation and route protection
+   - Manages redirects for authenticated/unauthenticated users
+
+2. **Authentication Context** (`contexts/auth-context.tsx`):
+   - Provides global authentication state
+   - Manages user session through Supabase
+   - Handles login, signup, and logout operations
+   - Implements auth state change listeners
+
+3. **Session Persistence**:
+   - Uses cookies for session storage
+   - Implements secure cookie handling through Supabase's SSR utilities
+   - Session tokens are automatically managed by Supabase
+
+# Caching Strategy
+
+## Client-Side Caching
+1. **Profile Caching** (`hooks/use-user-profile.ts`):
+   - Implements localStorage-based caching for user profiles
+   - Cache expiry set to 24 hours
+   - Automatic cache invalidation and refresh
+   - Handles avatar URL caching and transformation
+
+2. **SWR for Data Fetching** (`hooks/use-job-shortlist.ts`):
+   - Uses SWR for efficient data fetching and caching
+   - Implements optimistic updates
+   - Configurable revalidation strategies
+   - Handles error states and retries
+
+## Server-Side Caching
+1. **React Server Components**:
+   - Uses React's `cache` function for server component data
+   - Implements memoization for Supabase client creation
+   - Reduces redundant database queries
+
+# API Calls & Data Fetching
+
+## API Structure
+1. **Route Handlers** (`app/api/*/route.ts`):
+   - Implements RESTful endpoints
+   - Handles pagination (10 items per page)
+   - Includes error handling and logging
+   - Transforms data to match frontend types
+
+2. **Protected Routes**:
+   - All API routes require authentication
+   - Uses Supabase session tokens for authorization
+   - Implements proper error handling for unauthorized access
+
+## Data Fetching Patterns
+1. **Client-Side Fetching**:
+   - Uses `fetch` API with proper error handling
+   - Implements loading states and error boundaries
+   - Handles pagination and infinite scroll
+   - Includes retry mechanisms for failed requests
+
+2. **Server-Side Fetching**:
+   - Uses Supabase client for direct database access
+   - Implements proper error handling and logging
+   - Includes data transformation and validation
+
+# Security Considerations
+
+1. **Environment Variables**:
+   - Uses separate keys for different environments
+   - Implements proper validation for required variables
+   - Includes fallback mechanisms for missing configurations
+
+2. **Authentication Security**:
+   - Implements proper session validation
+   - Uses secure cookie handling
+   - Includes CSRF protection through Supabase
+   - Implements proper error handling for auth failures
+
+3. **API Security**:
+   - All API routes are protected
+   - Implements proper authorization checks
+   - Includes rate limiting and error handling
+   - Uses secure headers and CORS policies
+
+# Best Practices Implemented
+
+1. **Error Handling**:
+   - Comprehensive error logging
+   - User-friendly error messages
+   - Proper error boundaries
+   - Retry mechanisms for transient failures
+
+2. **Performance**:
+   - Efficient caching strategies
+   - Optimistic updates
+   - Proper data transformation
+   - Pagination for large datasets
+
+3. **Code Organization**:
+   - Clear separation of concerns
+   - Reusable hooks and components
+   - Consistent error handling
+   - Proper type definitions
+
+This architecture provides a robust foundation for the application, with proper security measures, efficient data handling, and good performance characteristics. The use of Supabase simplifies authentication and session management while providing a secure and scalable solution.

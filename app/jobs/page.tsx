@@ -261,19 +261,56 @@ export default function JobsPage() {
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                 </div>
               ) : jobs.length === 0 ? (
-                <Card className="border rounded-xl">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold">No jobs available</h3>
-                    <p className="text-muted-foreground">Check back later for new opportunities</p>
-                    {user && (
-                      <Button 
-                        className="mt-4"
-                        onClick={handleCreateJob}
+                <Card className="overflow-hidden border-0 bg-white dark:bg-black shadow-sm hover:shadow-md transition-all duration-200">
+                  <CardContent className="flex flex-col items-center justify-center px-5 py-4">
+                    <div className="mb-6">
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 48 48"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="text-gray-400"
                       >
-                        Create a Job Post
+                        <path
+                          d="M24 4C12.96 4 4 12.96 4 24C4 35.04 12.96 44 24 44C35.04 44 44 35.04 44 24C44 12.96 35.04 4 24 4ZM24 40C15.18 40 8 32.82 8 24C8 15.18 15.18 8 24 8C32.82 8 40 15.18 40 24C40 32.82 32.82 40 24 40Z"
+                          fill="currentColor"
+                          opacity="0.2"
+                        />
+                        <path
+                          d="M24 12C27.32 12 30 14.68 30 18C30 21.32 27.32 24 24 24C20.68 24 18 21.32 18 18C18 14.68 20.68 12 24 12ZM24 34C18.66 34 14 31.68 14 28.4V26C14 23.24 19.34 21 24 21C28.66 21 34 23.24 34 26V28.4C34 31.68 29.34 34 24 34Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100">No recommended projects yet</h3>
+                    <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300 max-w-md leading-relaxed">
+                      We're working on finding projects that match your skills and interests. Check back soon or create your own project.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 mt-8">
+                      <Button 
+                        onClick={handleCreateJob}
+                        className="h-9 px-6 rounded-full text-sm font-medium bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                      >
+                        <PlusIcon className="h-4 w-4 mr-2" />
+                        Create Project
                       </Button>
-                    )}
+                      <Button 
+                        variant="outline"
+                        onClick={() => router.push('/explore')}
+                        className="h-9 px-6 rounded-full text-sm font-medium border-gray-200 dark:border-gray-800"
+                      >
+                        Explore Projects
+                      </Button>
+                    </div>
+                    <div className="mt-6 flex items-center gap-2">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-50 dark:bg-gray-900">
+                        <span className="text-xs text-gray-400">i</span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Projects are reviewed by our team before being listed
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               ) : (

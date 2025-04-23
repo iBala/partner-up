@@ -13,17 +13,17 @@ interface FilterBarProps {
 
 export function FilterBar({ table }: FilterBarProps) {
   return (
-    <div className="py-3 sticky top-14 z-10 bg-[#FAFAFA] dark:bg-[#111111]">
+    <div className="py-0 sticky top-14 z-10 bg-[#FAFAFA] dark:bg-[#111111]">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="w-auto min-w-fit">
           <JobTabs />
         </div>
 
-        <div className="flex items-start gap-2 w-auto">
+        {/* <div className="flex items-start gap-2 w-auto">
           <div className="w-auto">
             <DataTableFilter table={table} />
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   )
