@@ -8,36 +8,39 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Clock, Target, Lightbulb } from "lucide-react"
 import { ProjectApplicationForm } from "@/components/project-application-form"
 import { createClient } from "@/lib/supabase/client"
-import { useSession } from "next-auth/react"
+import { useAuth } from '@/contexts/auth-context'
+import { toast } from "sonner"
+import { formatDistanceToNow } from 'date-fns'
 import { Job } from "@/types/job"
 import { Session } from "@/types/session"
 
 interface ProjectCardProps {
   project: Job
+  onStatusChange: (status: boolean) => void
 }
 
-export default function ProjectCard({ project }: ProjectCardProps) {
+export default function ProjectCard({ project, onStatusChange }: ProjectCardProps) {
+  const { user } = useAuth()
   const [isApplicationOpen, setIsApplicationOpen] = useState(false)
   const [hasApplied, setHasApplied] = useState(false)
-  const { data: session } = useSession() as { data: Session | null }
   const supabase = createClient()
 
   useEffect(() => {
     const checkApplicationStatus = async () => {
-      if (!session?.user?.id) return
+      if (!user?.id) return
 
       const { data } = await supabase
         .from("partner_job_applications")
         .select("id")
         .eq("job_id", project.id)
-        .eq("applicant_user_id", session.user.id)
+        .eq("applicant_user_id", user.id)
         .single()
 
       setHasApplied(!!data)
     }
 
     checkApplicationStatus()
-  }, [project.id, session?.user?.id, supabase])
+  }, [project.id, user?.id, supabase])
 
   return (
     <Card className="overflow-hidden border-0 bg-white dark:bg-black shadow-sm hover:shadow-md transition-all duration-200">

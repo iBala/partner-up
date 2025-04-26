@@ -16,7 +16,7 @@ CREATE TABLE public.partner_profiles (
 -- Create jobs table
 CREATE TABLE public.partner_jobs (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id uuid REFERENCES public.partner_profiles(id) ON DELETE CASCADE,
+  user_profile_id uuid REFERENCES public.partner_profiles(id) ON DELETE CASCADE,
   title text NOT NULL,
   description text NOT NULL,
   location text,

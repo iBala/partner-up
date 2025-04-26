@@ -53,7 +53,12 @@ export default function ProtectedHeader() {
 
           {/* Navigation */}
           <div className="flex items-center space-x-1">
-            <Button variant="ghost" size="sm" className="text-xs h-8 px-3 hidden md:flex">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs h-8 px-3 hidden md:flex"
+              onClick={() => router.push('/dashboard/my-projects')}
+            >
               My Projects
             </Button>
 
@@ -70,32 +75,24 @@ export default function ProtectedHeader() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                   <Avatar className="h-7 w-7 border border-gray-200 dark:border-gray-700">
-                    <AvatarImage 
-                      src={profile?.avatar_url} 
-                      className="object-cover"
-                      onError={(e) => {
-                        console.error('Error loading header avatar:', e)
-                        const img = e.target as HTMLImageElement
-                        console.log('Failed header avatar URL:', JSON.stringify(img.src))
-                        // Try to load the image directly to check if it's accessible
-                        fetch(img.src)
-                          .then(response => {
-                            console.log('Header avatar URL response:', {
-                              status: response.status,
-                              ok: response.ok,
-                              headers: Object.fromEntries(response.headers.entries())
-                            })
-                          })
-                          .catch(error => console.error('Header avatar fetch error:', error))
-                      }}
-                      onLoad={(e) => {
-                        const img = e.target as HTMLImageElement
-                        console.log('Successfully loaded header avatar:', JSON.stringify(img.src))
-                      }}
-                      alt={`${profile?.full_name}'s avatar`}
-                    />
+                    {profile?.avatar_url && (
+                      <AvatarImage 
+                        src={profile.avatar_url} 
+                        className="object-cover"
+                        onError={(e) => {
+                          console.error('Error loading header avatar:', e)
+                          const img = e.target as HTMLImageElement
+                          console.log('Failed header avatar URL:', JSON.stringify(img.src))
+                        }}
+                        onLoad={(e) => {
+                          const img = e.target as HTMLImageElement
+                          console.log('Successfully loaded header avatar:', JSON.stringify(img.src))
+                        }}
+                        alt={`${profile?.full_name}'s avatar`}
+                      />
+                    )}
                     <AvatarFallback className="text-xs">
-                      {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || '?'}
                     </AvatarFallback>
                   </Avatar>
                 </Button>

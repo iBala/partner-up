@@ -94,11 +94,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check active sessions and sets the user
     const getSession = async () => {
       try {
+        setIsLoading(true)
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) throw error
-        setUser(session?.user ?? null)
+        
+        // If we have a session, get the user data
+        if (session?.user) {
+          const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser()
+          if (userError) throw userError
+          setUser(verifiedUser)
+        } else {
+          setUser(null)
+        }
       } catch (error) {
         console.error('Error getting session:', error)
+        setUser(null)
       } finally {
         setIsLoading(false)
       }
@@ -107,8 +117,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getSession()
 
     // Listen for changes on auth state (sign in, sign out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser()
+        if (userError) {
+          console.error('Error getting verified user:', userError)
+          setUser(null)
+          return
+        }
+        setUser(verifiedUser)
+      } else {
+        setUser(null)
+      }
     })
 
     return () => subscription.unsubscribe()
